@@ -113,5 +113,6 @@ class AppFactory
             return $response->withHeader('Content-Type', 'application/json');
         });
 
+        return $app;
     }
 }
