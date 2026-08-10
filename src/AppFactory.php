@@ -3,13 +3,20 @@ declare(strict_types=1);
 
 namespace Bilbofox\DeployRemote;
 
+use Nette\Utils\Json;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Nette\Utils\FileSystem;
+use ZipArchive;
 
+/**
+ *
+ *
+ * @author Michal Kvita <Mikvt@seznam.cz>
+ */
 class AppFactory
 {
     public function __construct(
@@ -50,53 +57,60 @@ class AppFactory
         });
 
         $app->get('/', function (Request $request, Response $response): Response {
-            $response->getBody()->write('Deploy app is ready! Please use POST request with proper JSON body.');
-            return $response;
+            $response->getBody()->write(Json::encode(['ping' => 'ok']));
+            return $response->withHeader('Content-Type', 'application/json');
         });
         $app->post('/', function (Request $request, Response $response): Response {
             $input = (object)$request->getParsedBody();
 
-            /*if (!isset($input->pack) || !file_exists($packsDir . '/' . $input->pack)) {
-                return $response->withStatus(400, 'Given pack file does not exist');
+            if (!isset($input->pack)) {
+                return $response->withStatus(400, '"pack" item missing in given request body');
+            }
+            if (!isset($input->target)) {
+                return $response->withStatus(400, '"target" item missing in given request body');
+            }
+
+            $packFile = $this->packsDir . '/' . $input->pack;
+            if (!file_exists($packFile)) {
+                return $response->withStatus(400, sprintf('Given pack file "%s" does not exist in packs directory', $input->pack));
             }
 
             $zip = new ZipArchive;
-            $tmpPackDir = $packsDir . '/' . pathinfo($input->pack, PATHINFO_FILENAME);
-            if ($zip->open($packsDir . '/' . $input->pack) === true) {
+            $tmpPackDir = $this->packsDir . '/' . pathinfo($input->pack, PATHINFO_FILENAME);
+            if ($zip->open($packFile) === true) {
                 $zip->extractTo($tmpPackDir);
                 $zip->close();
             } else {
                 return $response->withStatus(500, 'Error while extracting pack file');
             }
 
-            if (isset($input->target)) {
-                $targetDir = $webrootDir . '/' . $input->target;
-                $targetDirOld = $targetDir . '_old';
+            $targetDir = $this->rootDir . '/' . $input->target;
+            $targetDirOld = $targetDir . '_old';
 
-                if (file_exists($targetDirOld)) {
-                    FileSystem::delete($targetDirOld);
-                }
-                if (file_exists($targetDir)) {
-                    FileSystem::rename($targetDir, $targetDirOld);
-                }
+            if (file_exists($targetDirOld)) {
+                FileSystem::delete($targetDirOld);
+            }
+            if (file_exists($targetDir)) {
+                FileSystem::rename($targetDir, $targetDirOld);
+            }
 
-                FileSystem::rename($tmpPackDir, $targetDir);
+            FileSystem::rename($tmpPackDir, $targetDir);
 
-                if (file_exists($targetDirOld)) {
-                    FileSystem::delete($targetDirOld);
-                }
+            if (file_exists($targetDirOld)) {
+                FileSystem::delete($targetDirOld);
+            }
 
-                $targetCryptDir = $cryptDir . '/' . $input->target;
-                if (file_exists($targetCryptDir)) {
-                    foreach (scandir($targetCryptDir) as $cryptFile) {
-                        if ($cryptFile !== '.' && $cryptFile !== '..') {
-                            FileSystem::copy($targetCryptDir . '/' . $cryptFile, $targetDir . '/' . $cryptFile);
-                        }
+            $targetCryptDir = $this->cryptDir . '/' . $input->target;
+            if (file_exists($targetCryptDir)) {
+                foreach (scandir($targetCryptDir) as $cryptFile) {
+                    if ($cryptFile !== '.' && $cryptFile !== '..') {
+                        FileSystem::copy($targetCryptDir . '/' . $cryptFile, $targetDir . '/' . $cryptFile);
                     }
                 }
-            }*/
+            }
 
-            return $response;
+            $response->getBody()->write(Json::encode(['deploy' => 'ok']));
+            return $response->withHeader('Content-Type', 'application/json');
         });
 
     }
