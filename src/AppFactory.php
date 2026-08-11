@@ -77,11 +77,14 @@ class AppFactory
 
             $zip = new ZipArchive;
             $tmpPackDir = $this->packsDir . '/' . pathinfo($input->pack, PATHINFO_FILENAME);
-            if ($zip->open($packFile) === true) {
-                $zip->extractTo($tmpPackDir);
-                $zip->close();
-            } else {
+            if ($zip->open($packFile) !== true) {
+                return $response->withStatus(500, 'Error while opening pack file');
+            }
+            if (!$zip->extractTo($tmpPackDir)) {
                 return $response->withStatus(500, 'Error while extracting pack file');
+            }
+            if (!$zip->close()) {
+                return $response->withStatus(500, 'Error while closing pack file');
             }
 
             $targetDir = $this->rootDir . '/' . $input->target;
