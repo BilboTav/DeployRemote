@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Bilbofox\DeployRemote;
 
 use Nette\Utils\Json;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\NullLogger;
 use Slim\App;
 use Slim\Factory\AppFactory as SlimAppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -11,6 +13,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use Nette\Utils\FileSystem;
 use ZipArchive;
+use RuntimeException;
 
 /**
  *
@@ -19,6 +22,8 @@ use ZipArchive;
  */
 class AppFactory
 {
+    use LoggerAwareTrait;
+
     public function __construct(
         private readonly string $rootDir,
         private readonly string $packsDir,
@@ -32,12 +37,15 @@ class AppFactory
 
     public function create(): App
     {
+        $logger = $this->logger ?? new NullLogger();
+
         $app = SlimAppFactory::create();
         $app->addBodyParsingMiddleware();
         $app->addErrorMiddleware(
             displayErrorDetails: $this->debug,
-            logErrors: false,
-            logErrorDetails: false
+            logErrors: !$this->debug,
+            logErrorDetails: !$this->debug,
+            logger: $logger,
         );
         $app->add(function (Request $request, RequestHandler $handler) use ($app): Response {
             if ($this->basePath === null) {
@@ -60,7 +68,7 @@ class AppFactory
             $response->getBody()->write(Json::encode(['ping' => 'ok']));
             return $response->withHeader('Content-Type', 'application/json');
         });
-        $app->post('/', function (Request $request, Response $response): Response {
+        $app->post('/', function (Request $request, Response $response) use ($logger): Response {
             $input = (object)$request->getParsedBody();
 
             if (!isset($input->pack)) {
@@ -75,17 +83,21 @@ class AppFactory
                 return $response->withStatus(400, sprintf('Given pack file "%s" does not exist in packs directory', $input->pack));
             }
 
+            $logger->info(sprintf('STARTING DEPLOY for target "%s"', $input->target));
+
             $zip = new ZipArchive;
             $tmpPackDir = $this->packsDir . '/' . pathinfo($input->pack, PATHINFO_FILENAME);
             if ($zip->open($packFile) !== true) {
-                return $response->withStatus(500, 'Error while opening pack file');
+                throw new RuntimeException('Error while opening pack file');
             }
             if (!$zip->extractTo($tmpPackDir)) {
-                return $response->withStatus(500, 'Error while extracting pack file');
+                throw new RuntimeException('Error while extracting pack file');
             }
             if (!$zip->close()) {
-                return $response->withStatus(500, 'Error while closing pack file');
+                throw new RuntimeException('Error while closing pack file');
             }
+
+            $logger->info(sprintf('Pack "%s" extracted', $input->pack));
 
             $targetDir = $this->rootDir . '/' . $input->target;
             $targetDirOld = $targetDir . '_old';
@@ -111,6 +123,8 @@ class AppFactory
                     }
                 }
             }
+
+            $logger->info('DEPLOY FINISHED successfully!');
 
             $response->getBody()->write(Json::encode(['deploy' => 'ok']));
             return $response->withHeader('Content-Type', 'application/json');
