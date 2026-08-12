@@ -16,7 +16,7 @@ use ZipArchive;
 use RuntimeException;
 
 /**
- *
+ * Application factory of deploy remote app
  *
  * @author Michal Kvita <Mikvt@seznam.cz>
  */
@@ -24,10 +24,17 @@ class AppFactory
 {
     use LoggerAwareTrait;
 
+    /**
+     * @param string $rootDir Root directory of server, from which paths are calculated
+     * @param string $cryptDir Path for directory with additional files added to unpacked packs, inside should match path from root to project
+     * @param string $packsDir Temporary directory for unpacked packs
+     * @param string|null $basePath Basepath for application or null for autodetection
+     * @param bool $debug Debug mode on/off
+     */
     public function __construct(
         private readonly string $rootDir,
-        private readonly string $packsDir,
         private readonly string $cryptDir,
+        private readonly string $packsDir,
         private readonly ?string $basePath = null,
         private readonly bool $debug = false,
     )
