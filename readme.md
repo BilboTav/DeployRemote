@@ -27,8 +27,8 @@ $logger = new My\Psr3\Logger();
 
 $appFactory = new AppFactory(
     rootDir: $rootDir,
-    packsDir: $packsDir,
     cryptDir: $cryptDir,
+    packsDir: $packsDir,
 );
 $appFactory->setLogger($logger);
 $app = $appFactory->create();
